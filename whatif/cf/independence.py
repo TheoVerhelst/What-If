@@ -25,4 +25,4 @@ class Independence:
 
 
     def population_cf(self):
-        return self.individual_cf(self.S_0, self.S_1).mean(axis=1)
+        return np.mean(self.individual_cf(self.S_0, self.S_1), axis=0)
