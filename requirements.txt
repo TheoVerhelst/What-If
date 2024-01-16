@@ -2,6 +2,5 @@ numpy
 pandas
 scipy
 sklearn
-causalml
 mpmath
 tqdm
