@@ -18,7 +18,8 @@ def multi_beta(m):
 
     .. math::
 
-        B(m) = \frac{\prod_{i=1}^n\Gamma(m_i)}{\Gamma\left(\sum_{i=1}^n m_i\right)}
+        B(m) = \\frac{\prod_{i=1}^n\Gamma(m_i)}{\Gamma\left(\sum_{i=1}^n m_i\\right)}
+
     """
     # Use log functions to avoid float overflows
     return np.exp(log_multi_beta(m))
@@ -28,7 +29,8 @@ def harmonic_partial_sum(x, n):
 
     .. math::
 
-        \sum_{i=1}^n\frac 1{x + i - 1}
+        \sum_{i=1}^n\\frac 1{x + i - 1}
+
     """
     return np.sum(1 / (x + np.arange(n)))
 

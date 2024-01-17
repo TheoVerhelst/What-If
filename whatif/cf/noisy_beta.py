@@ -6,11 +6,14 @@ Academic supervision: Gianluca Bontempi
 
 import numpy as np
 import scipy as sc
+import mpmath as mp
 from scipy.special import comb
 from tqdm.autonotebook import trange
 from joblib import Parallel, delayed
 from whatif.cf.math import all_harmonic_partial_sums, all_rising_factorials, stirling_1
-from whatif.cf.optimization_helpers import compute_sample_moments, compute_full_jacobian, fit_error, integrate
+from whatif.cf.optimization_helpers import compute_sample_moments, \
+            compute_full_jacobian, fit_error, integrate, double_integrate, \
+            moment_n_to_rs, moment_rs_to_n, mpmath_to_float
 from whatif.cf import BivariateBeta
 
 class NoisyBeta:
@@ -37,7 +40,7 @@ class NoisyBeta:
                         * self.inner_dis.exact_moment(p, q)
         return moment / self.l_0_rising[r] / self.l_1_rising[s]
 
-    def unbiased_moments(self, S_0, S_1, n_moments):
+    def unbiased_moments(self, S_0_hat, S_1_hat, n_moments):
         """Computes the moments of the underlying bivariate distribution
         without noise, from the noisy sample moments. Remarquably, this does
         not require to know anything about the underlying bivariate
@@ -46,7 +49,7 @@ class NoisyBeta:
         bivariate distribution.
         """
         moment_indices = list(range(n_moments))
-        sample_moments = compute_sample_moments(S_0, S_1, moment_indices)
+        sample_moments = compute_sample_moments(S_0_hat, S_1_hat, moment_indices)
         moments = np.zeros(n_moments)
         for n in range(n_moments):
             r, s = moment_n_to_rs(n)
@@ -82,18 +85,23 @@ class NoisyBeta:
 
         return J / self.l_0_rising[r] / self.l_1_rising[s]
 
-    def initial_guess(self, S_0, S_1):
-        n_moments = 6
-        unbiased_moments = self.unbiased_moments(S_0, S_1, n_moments)
-        return self.inner_class.initial_guess(range(n_moments), unbiased_moments)
 
-    def fit(self, moment_indices, sample_moments, params_init, fix_l=True, **kwargs):
+    def fit(self, S_0_hat, S_1_hat, fix_l=True, moment_indices=None, **kwargs):
+        if moment_indices is None:
+            n_moments = 6
+            moment_indices = range(n_moments)
+            unbiased_moments = self.unbiased_moments(S_0_hat, S_1_hat, n_moments)
+            inner_params_init = self.inner_class.initial_guess(moment_indices, unbiased_moments)
+
+        sample_moments = compute_sample_moments(S_0_hat, S_1_hat, moment_indices)
+
         if fix_l:
-            return self.fit_fixed_l(moment_indices, sample_moments, params_init, **kwargs)
+            return self._fit_fixed_l(moment_indices, sample_moments, inner_params_init, **kwargs)
         else:
-            return self.fit_variable_l(moment_indices, sample_moments, params_init, **kwargs)
+            return self._fit_variable_l(moment_indices, sample_moments, inner_params_init, **kwargs)
 
-    def fit_variable_l(self, moment_indices, sample_moments, params_init, **kwargs):
+
+    def _fit_variable_l(self, moment_indices, sample_moments, inner_params_init, **kwargs):
         res = sc.optimize.least_squares(
             lambda params: fit_error(
                 NoisyBeta(params[0], params[1], self.inner_class, params[2:]),
@@ -110,18 +118,18 @@ class NoisyBeta:
         )
         self.l_0_init = self.l_0
         self.l_1_init = self.l_1
-        self.params_init = params_init
+        self.inner_params_init = inner_params_init
         self.__init__(res.x[0], res.x[1], self.inner_class, res.x[2:])
         return res.cost
 
-    def fit_fixed_l(self, moment_indices, sample_moments, params_init, **kwargs):
+    def _fit_fixed_l(self, moment_indices, sample_moments, inner_params_init, **kwargs):
         res = sc.optimize.least_squares(
             lambda params: fit_error(
                 NoisyBeta(self.l_0, self.l_1, self.inner_class, params),
                 moment_indices,
                 sample_moments
             ),
-            x0=params_init,
+            x0=inner_params_init,
             jac=lambda params: compute_full_jacobian(
                 NoisyBeta(self.l_0, self.l_1, self.inner_class, params),
                 moment_indices
@@ -131,15 +139,18 @@ class NoisyBeta:
         )
         self.l_0_init = self.l_0
         self.l_1_init = self.l_1
-        self.params_init = params_init
+        self.inner_params_init = inner_params_init
         self.__init__(self.l_0, self.l_1, self.inner_class, res.x)
         return res.cost
 
     def pdf_log_inner_integrand(self, S_0, S_1, mpmath=False, inner_dis=None):
         """Computes
+
+        .. math::
             log(f_m(S_0, S_1) / B(S_0*l_0, (1-S_0)*l_0)
                               / B(S_1*l_1, (1-S_1)*l_1)
             )
+            
         and caches the result.
         """
         if inner_dis is None:

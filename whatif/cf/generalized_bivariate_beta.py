@@ -84,7 +84,7 @@ class GeneralizedBivariateBeta:
             moment_indices = [1, 2, 3, 5]
 
         sample_moments = compute_sample_moments(S_0, S_1, moment_indices)
-        self.fit_from_moments(moment_indices, sample_moments, **kwargs)
+        return self.fit_from_moments(moment_indices, sample_moments, **kwargs)
 
     def fit_from_moments(self, moment_indices, sample_moments, params_init=None, C=1e-4, **kwargs):
         if params_init is None:

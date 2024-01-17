@@ -5,3 +5,4 @@ Academic supervision: Gianluca Bontempi
 """
 
 from .dataset import Dataset
+from .simulation_functions import simulate_uplift_bb, simulate_uplift_norm

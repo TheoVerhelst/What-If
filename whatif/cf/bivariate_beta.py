@@ -1,6 +1,8 @@
 """
 Code for the project Machu-Picchu written by Théo Verhelst
+
 Supervisors at Orange: Denis Mercier, Jeevan Shrestha
+
 Academic supervision: Gianluca Bontempi
 """
 
@@ -13,6 +15,31 @@ from whatif.cf.math import all_rising_factorials, all_harmonic_partial_sums, log
 from whatif.cf.optimization_helpers import fit_error, compute_full_jacobian, mpmath_to_float, integrate, estimate_cf, compute_sample_moments
 
 class BivariateBeta:
+    """Bivariate beta distribution from [1]_. This is a bivariante random
+    distribution whose domain is the square :math:`[0,1]^2`, and the marginal
+    distributions are beta distributions. See [2]_, Annex D for the details of
+    the computations.
+
+    In this page, we note the random variables with bivariate beta distribution
+    as :math:`\mathbf S_0, \mathbf S_1`.
+
+    Parameters
+    ----------
+        m: array-like of shape (4,) with dtype `float`, default=None
+            Parameters of the distribution. Can be `None`, since :func:`fit`
+            will set its value as well. Must have only nonnegative values.
+
+
+    References
+    ----------
+    .. [1] Olkin, Ingram and Thomas A Trikalinos (2015). "Constructions for a
+           bivariate beta distribution". In: Statistics & Probability Letters
+           96. Publisher: Elsevier, pp. 54–60.
+
+    .. [2] Théo Verhelst (2024). "Causal and predictive modeling of customer
+           churn: lessons learned from empirical and theoretical research". PhD
+           thesis, Université Libre de Bruxelles.
+    """
     n_max = 6
     pascal = sc.linalg.pascal(n_max, kind="lower", exact=False)
 
@@ -34,9 +61,23 @@ class BivariateBeta:
             self.log_integration_constant = -log_multi_beta(self.m)
 
     def params(self):
+        """Returns the value of the distribution parameters."""
         return self.m
 
     def exact_moment(self, r, s):
+        """Compute the distribution moments of order :math:`r,s`. This
+        corresponds to :math:`\mathbb E[\mathbf S_0^r\mathbf S_1^s]`.
+
+        Parameters
+        ----------
+        r, s: int
+            Order of the moments. Must be integers.
+
+        Returns
+        -------
+        M: float
+            Exact value of the moment.
+        """
         moment = 0
         for p in range(r + 1):
             for q in range(s + 1):
@@ -46,8 +87,23 @@ class BivariateBeta:
 
     def jacobian(self, r, s):
         """Computes the Jacobian matrix of the function that returns the
-        moment given the parameter vector m. This is used in the
-        optimization procedure.
+        distribution moments from the parameter vector `m`, that is,
+
+        .. math::
+            \\frac{\partial\mathbb E[\mathbf S_0^r,\mathbf S_1^s]}{\partial m_i}.
+
+        This is used in the optimization procedure. In fact, this is only one
+        row of the Jacobian matrix, for a given value of `r` and `s`.
+
+        Parameters
+        ----------
+        r, s: int
+            Order of the moments. Must be integers.
+
+        Returns
+        -------
+        d: ndarray of shape (4,) and dtype `float`
+            Partial derivatives.
         """
         J = np.zeros(self.m.size)
         for p in range(r + 1):
@@ -64,7 +120,9 @@ class BivariateBeta:
     @staticmethod
     def initial_guess(moment_indices, sample_moments):
         """Makes an educated guess for the value of the distribution
-        parameters, given the 5 first sample moments.
+        parameters `m`, given the sample moment of indices 1, 2, 3 and 5, that
+        is, :math:`\mathbb E[\mathbf S_0],\mathbb E[\mathbf S_1],
+        \mathbb E[\mathbf S_0^2]` and :math:`\mathbb E[\mathbf S_1^2]`
         """
         assert all(m in moment_indices for m in [1, 2, 3, 5])
         R_10, R_01, R_20, R_02 = (sample_moments[moment_indices.index(m)] for m in [1, 2, 3, 5])
@@ -84,14 +142,67 @@ class BivariateBeta:
         d = R_10       * R_01
         return np.array([a, b, c, d]) * A
 
-    def fit(self, S_0, S_1, moment_indices = None, **kwargs):
+    def fit(self, S_0, S_1, moment_indices=None, **kwargs):
+        """Fits the distribution parameters to a series of samples from
+        :math:`\mathbf S_0,\mathbf S_1`. It uses the function
+        `scipy.optimize.least_squares` internally for the optimization
+        procedure. It finds the distribution parameters that most closely match
+        the samples moments of the input.
+
+        Parameters
+        ----------
+        S_0, S_1 : 1D array-like of shape (N,) and dtype `float`
+            Samples of :math:`\mathbf S_0,\mathbf S_1`. Must have the same
+            length.
+
+        moment_indices : array-like with dtype `int`, default=None
+            Indices of the moments to use for the optimization. There should be
+            at least four moments, since the distribution has four parameters.
+            If `None`, it is set to `[1, 2, 3, 5]`.
+
+        **kwargs :
+            parameters forwarded to `scipy.optimize.least_squares`.
+
+        Returns
+        -------
+        C: float
+            The final cost computed by the optimization procedure (lower means
+            a better fit to the data).
+
+        """
+
         if moment_indices is None:
             moment_indices = [1, 2, 3, 5]
 
         sample_moments = compute_sample_moments(S_0, S_1, moment_indices)
-        self.fit_from_moments(moment_indices, sample_moments, **kwargs)
+        return self.fit_from_moments(moment_indices, sample_moments, **kwargs)
 
     def fit_from_moments(self, moment_indices, sample_moments, params_init=None, **kwargs):
+        """Same as `fit`, but takes as input already-computed moments, and
+        optionally initial values for the distribution parameters.
+
+        Parameters
+        ----------
+        moment_indices: 1D array-like with dtype `int`
+            See :func:`fit`.
+
+        sample_moments: 1D array-like with dtype `float`
+            Sample moments corresponding to `moment_indices`.
+
+        params_init: array-like of shape (4,) with dtype `float`
+            Initial value for `m` during optimization. Must have only
+            nonnegative values.
+
+        **kwargs:
+            parameters forwarded to `scipy.optimize.least_squares`.
+
+        Returns
+        -------
+        C: float
+            The final cost computed by the optimization procedure (lower means
+            a better fit to the data).
+        """
+
         if params_init is None:
             params_init = BivariateBeta.initial_guess(moment_indices, sample_moments)
 
@@ -107,8 +218,33 @@ class BivariateBeta:
         return res.cost
 
     def pdf_integrand(self, delta, S_0, S_1, mpmath=False):
-        """Function integrated in the CDF of the bivariate beta distribution.
-        The function is integrated over delta.
+        """Function that is integrated when computing the pdf of the
+        distribution. The function is integrated over delta.
+
+        Parameters
+        ----------
+        delta: float
+            dependent variable in the function
+
+        S_0: float
+            Current value of S_0
+
+        S_1: float
+            Current value of S_1
+
+        mpmath: bool, default=False
+            If `True`, use `mpmath` functions to compute exponentials and
+            logarithms. Otherwise, use the `numpy` version.
+
+        Returns
+        -------
+
+        res: float
+
+            .. math::
+                (1-S_0-S_1+\delta)^{m_1-1} (S_0-\delta)^{m_2-1}
+                (S_1-\delta)^{m_3-1} \delta^{m_4-1}
+
         """
         exp = mp.exp if mpmath else np.exp
         log = mp.log if mpmath else np.log
@@ -120,6 +256,27 @@ class BivariateBeta:
         )
 
     def log_pdf(self, S_0, S_1, show_progress=False):
+        """Computes the logarithm of the pdf for the given samples. It uses
+        mpmath for samples when the integration suffers too much from numerical
+        errors, and numpy otherwise.
+
+        Parameters
+        ----------
+        S_0: 1D ndarray with dtype `float`
+
+        S_1: 1D ndarray with dtype `float`
+
+        show_progress: bool, default=False
+            If `True`, uses `tqdm.trange` to show the progress of the
+            computation.
+
+        Returns
+        -------
+        pdf: ndarray with dtype `float`
+            The log density for each value in `S_0` and `S_1`.
+        """
+        assert S_0.ndim == 1 and S_1.ndim == 1, "S_0 and S_1 should be 1D vectors"
+
         if show_progress:
             r = trange(S_0.size)
         else:
@@ -135,15 +292,58 @@ class BivariateBeta:
         ]))) + self.log_integration_constant
 
     def pdf(self, S_0, S_1, show_progress=False):
+        """Computes the logarithm of the pdf for the given samples. It uses
+        mpmath for samples when the integration suffers too much from numerical
+        errors, and numpy otherwise.
+
+        Parameters
+        ----------
+        S_0: 1D ndarray with dtype `float`
+
+        S_1: 1D ndarray with dtype `float`
+
+        show_progress: bool, default=False
+            If `True`, uses `tqdm.trange` to show the progress of the
+            computation.
+
+        Returns
+        -------
+        pdf: ndarray with dtype `float`
+            The density for each value in `S_0` and `S_1`.
+        """
         return np.exp(self.log_pdf(S_0, S_1, show_progress))
 
     def shifted_mu(self):
+        """Returns four new instances where one element of `m` is increased
+        in each, and an estimation of the population-level distribution of
+        counterfactuals.
+
+        Returns
+        -------
+        dis: list of size 4
+            BivariateBeta instances with shifted parameters
+
+        mu: ndarray of shape (4,)
+            Estimated population counterfactuals
+        """
         return (
             [BivariateBeta(self.m + np.eye(4)[i]) for i in range(4)],
             self.m / np.sum(self.m)
         )
 
     def rvs(self, size):
+        """Generates random samples from the distribution.
+
+        Parameters
+        ----------
+        size: int
+            Number of samples to generate
+
+        Returns
+        -------
+        mu: ndarray of shape(size, 4)
+            Generated samples
+        """
         mu = sc.stats.dirichlet.rvs(self.m, size=size)
         return np.column_stack((
             mu[:, 1] + mu[:, 3],
@@ -151,15 +351,49 @@ class BivariateBeta:
         ))
 
     def individual_cf(self, S_0, S_1, show_progress=False, parallel=False):
+        """Computes the individual-level counterfactuals from samples of
+        :math:`\mathbf S_0,\mathbf S_1`.
+
+        Parameters
+        ----------
+        S_0: 1D ndarray with dtype `float`
+
+        S_1: 1D ndarray with dtype `float`
+
+        show_progress: bool, default=False
+            If `True`, uses `tqdm.trange` to show the progress of the
+            computation.
+
+        parallel: bool, default=False
+            If `True`, the computation for the four counterfactuals are done
+            in parallel using multiple threads.
+
+        Returns
+        -------
+        mu: ndarray of shape (N, 4) with dtype `float`
+            The countefactuals for each value in `S_0` and `S_1`.
+        """
         return estimate_cf(self, S_0, S_1, show_progress, parallel)
 
     def population_cf(self):
+        """Returns an estimation of the population-level distribution of
+        counterfactuals.
+
+        Returns
+        -------
+        mu: ndarray of shape (4,)
+            Estimated population counterfactuals
+        """
         return self.m / np.sum(self.m)
 
     def expectation_maximization(S_0, S_1, mu, n_iter=10, exact_mu=None, n_moments=6):
         """Applies the expectation-maximization (EM) algorithm by using
         the bivariate beta distribution, and using the counterfactual
         category of the customer as a latent variable.
+
+        Warning
+        -------
+        This function is not up-to-date and needs to be re-written.
         """
         # Probability for each sample to belong to each class
         mu = mu.copy()

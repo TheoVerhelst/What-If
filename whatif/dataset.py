@@ -1,4 +1,5 @@
-"""
+"""Wrapper for dataset objects.
+
 Code for the project Machu-Picchu written by Théo Verhelst
 Supervisors at Orange: Denis Mercier, Jeevan Shrestha
 Academic supervision: Gianluca Bontempi
@@ -12,7 +13,7 @@ class Dataset:
     the treatment t, or the reach r can be easily accessed and
     subscripted together. This is useful to avoid duplicating code.
     Any number of attributes (X, y, t, r, w, ...) can be used.
-    
+
     Example:
     ```
     d = Dataset(X=data[:, 0:10], y=data[:, 10], t=data[:, 11])
@@ -22,14 +23,14 @@ class Dataset:
     """
     def __init__(self, **arrays):
         self.__dict__.update(arrays)
-    
+
     def __getitem__(self, key):
         res = Dataset()
         res.__dict__.update(self.__dict__)
         for name in res.__dict__:
             res.__dict__[name] = res.__dict__[name][key].copy()
         return res
-    
+
     def train_test_split(self, *args, **kwargs):
         """Calls the function train_test_split from sklearn on the
         data objects stored in this Dataset. All parameters are

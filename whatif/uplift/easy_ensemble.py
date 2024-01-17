@@ -1,6 +1,8 @@
 """
 Code for the project Machu-Picchu written by Théo Verhelst
+
 Supervisors at Orange: Denis Mercier, Jeevan Shrestha
+
 Academic supervision: Gianluca Bontempi
 """
 
@@ -23,7 +25,7 @@ class EasyEnsemble:
         self.models = None
         self.verbose = verbose
         self.n_jobs = n_jobs
-    
+
     def _compute_fold(self, i, indices_1, data, N_0, N_1, *args, **kwargs):
         indices_0 = self.rng.integers(low=0, high=N_0, size=N_1)
         indices = np.hstack((indices_1, indices_0))
@@ -32,12 +34,17 @@ class EasyEnsemble:
         model = copy(self.base_model)
         model.fit(data_i, *args, **kwargs)
         return {"model": model, "training_indices": indices}
-    
+
     def fit(self, data, *args, **kwargs):
         """Fit the models on the folds.
-        
-        data: a functions.dataset.Dataset object.
-        *args, **kwargs: forwarded to the model.fit function.
+
+        Parameters
+        ----------
+        data:
+            A functions.dataset.Dataset object.
+
+        *args, **kwargs:
+            Forwarded to the model.fit function.
         """
         mask_1 = data.y == 1
         indices_1 = np.arange(mask_1.shape[0])[mask_1]
@@ -49,12 +56,17 @@ class EasyEnsemble:
             n_jobs=self.n_jobs,
             verbose=10 if self.verbose else 0
         )(delayed(self._compute_fold)(i, indices_1, data, N_0, N_1, *args, **kwargs) for i in range(self.n_folds))
-    
+
     def predict(self, data, *args, **kwargs):
         """Predict by averaging the models predictions.
-        
-        data: a functions.dataset.Dataset object.
-        *args, **kwargs: forwarded to the model.predict function.
+
+        Parameters
+        ----------
+        data:
+            A functions.dataset.Dataset object.
+
+        *args, **kwargs:
+            Forwarded to the model.predict function.
         """
         # Use a lambda to reduce the predictions of the different models.
         # We could use np.add but it wouldn't work with pandas DataFrames
