@@ -12,6 +12,8 @@ from joblib import Parallel, delayed
 import numpy as np
 from numpy.random import default_rng
 
+__all__ = ["EasyEnsemble"]
+
 class EasyEnsemble:
     """Implements the EasyEnsemble methodology for class balancing, from
     Liu, X.Y., Wu, J., Zhou, Z.H.: Exploratory undersampling for class-

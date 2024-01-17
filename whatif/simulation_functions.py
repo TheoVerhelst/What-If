@@ -9,6 +9,9 @@ from scipy.stats import binom, norm, multivariate_normal
 import numpy as np
 
 
+__all__ = ["simulate_uplift_bb", "simulate_uplift_norm"]
+
+
 def add_norm_noise(rng, S_0, S_1, var_0, var_1):
     S_0_hat = rng.normal(loc = S_0, scale = np.sqrt(var_p))
     S_1_hat = rng.normal(loc = S_1, scale = np.sqrt(var_p))

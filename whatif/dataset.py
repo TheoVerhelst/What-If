@@ -8,6 +8,8 @@ Academic supervision: Gianluca Bontempi
 from sklearn.model_selection import train_test_split
 import numpy as np
 
+__all__ = ["Dataset"]
+
 class Dataset:
     """Represents a dataset such that the features X, the outcomes y,
     the treatment t, or the reach r can be easily accessed and

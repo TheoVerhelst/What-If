@@ -31,7 +31,7 @@ extensions = [
 
 autoapi_options = [
     'members', 'undoc-members', 'show-inheritance',
-    'show-module-summary', 'special-members', 'imported-members'
+    'special-members', 'imported-members'
 ]
 
 templates_path = ['_templates']
@@ -47,3 +47,12 @@ autoapi_type = "python"
 html_permalinks_icon = '<span>#</span>'
 html_theme = 'sphinxawesome_theme'
 html_static_path = ['_static']
+
+def skip_submodules(app, what, name, obj, skip, options):
+    if what == "module":
+        skip = True
+    return skip
+
+
+def setup(sphinx):
+    sphinx.connect("autoapi-skip-member", skip_submodules)
