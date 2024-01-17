@@ -1,0 +1,10 @@
+__pycache__/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual environment
+env/
+
+# Sphinx documentation
+docs/_build/
